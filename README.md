@@ -6,12 +6,12 @@ La création et le stockage d'un token pour une API en PHP impliquent générale
 
 Un token est souvent une chaîne de caractères générée de manière aléatoire. Pour une sécurité accrue, vous pouvez utiliser des fonctions comme **openssl\_random\_pseudo\_bytes** et **bin2hex** : 
 
-function generateToken($length = 32) { ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.001.png)
-
-`    `return bin2hex(openssl\_random\_pseudo\_bytes($length)); } 
-
-$token = generateToken(); // Génère un token aléatoire 
-
+```php
+function generateToken($length = 32) {
+    return bin2hex(openssl_random_pseudo_bytes($length));
+}
+$token = generateToken(); // Génère un token aléatoire
+```
 2. **Stockage du Token** 
 
 Le token peut être stocké de différentes manières, en fonction de vos besoins : 
@@ -23,7 +23,9 @@ Le token peut être stocké de différentes manières, en fonction de vos besoin
 
 Le token est ensuite envoyé au client, généralement lors de la connexion ou de l'inscription : 
 
-echo json\_encode(["token" => $token]); ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.002.png)
+```php
+echo json_encode(["token" => $token]);
+```
 
 4. **Utilisation du Token pour les Requêtes Suivantes** 
 
@@ -39,19 +41,17 @@ Le client doit envoyer ce token avec chaque requête nécessitant une authentifi
 - **HTTPS :** Utilisez toujours HTTPS pour protéger les données transmises, notamment les tokens. 
 
 **Exemple de vérification :** 
+```php
+function verifyToken($receivedToken) {
+    // Logique pour vérifier le token (comparaison avec la base de données ou session)
+    // Retourner true si le token est valide, false sinon
+}
 
-function verifyToken($receivedToken) { ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.003.png)
-
-`    `// Logique pour vérifier le token (comparaison avec la base de données ou session)     // Retourner true si le token est valide, false sinon 
-
-} 
-
-if (!verifyToken($\_SERVER['HTTP\_AUTHORIZATION'])) {     http\_response\_code(401); // Non autorisé 
-
-`    `exit; 
-
-} 
-
+if (!verifyToken($_SERVER['HTTP_AUTHORIZATION'])) {
+    http_response_code(401); // Non autorisé
+    exit;
+}
+```
 Cette approche constitue un cadre de base pour gérer les tokens dans une API PHP. La mise en œuvre détaillée dépendra de la structure spécifique de votre application et de vos exigences en matière de sécurité. 
 
 **Attention !**  
@@ -60,7 +60,9 @@ La fonction **generateToken** utilise la fonction **bin2hex** sur le résultat d
 
 Par conséquent, le champ **token** dans votre base de données doit être capable de stocker 64 caractères. Si vous utilisez le type de données **VARCHAR** pour le champ **token** dans MySQL ou un système de gestion de base de données similaire, la déclaration devrait être : 
 
-*token* VARCHAR(64) ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.004.png)
+```sql
+token VARCHAR(64)
+```
 
 Cela garantira que le champ peut stocker le token généré par la fonction PHP. **Envoyer le token via Postman**  
 
@@ -76,84 +78,68 @@ Une fois que vous avez ajouté l'en-tête, vous pouvez envoyer votre requête, e
 
 Si l'en-tête n'est pas envoyé correctement par le client (Postman dans notre cas) ou si la ***configuration du serveur ne transmet pas les en-têtes d'authentification*** au script PHP, assurez-vous que votre script PHP utilise la bonne variable globale pour accéder à l'en-tête d'autorisation. Vous pourriez essayer d'accéder à l'en-tête d'authentification de cette manière : 
 
-<?php ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.005.png)
+```php
+<?php
+header("Content-Type: application/json");
 
-header("Content-Type: application/json"); 
+function extractToken() {
+    if (isset($_SERVER['HTTP_AUTHORIZATION'])) {
+        // Supprimez "Bearer" si présent
+        return preg_replace('/^Bearer\s/', '', $_SERVER['HTTP_AUTHORIZATION']);
+    } elseif (isset($_SERVER['REDIRECT_HTTP_AUTHORIZATION'])) {
+        // Dans certains cas, comme avec PHP tournant sous FastCGI, le préfixe 'REDIRECT_' est ajouté
+        return preg_replace('/^Bearer\s/', '', $_SERVER['REDIRECT_HTTP_AUTHORIZATION']);
+    } else {
+        // Tenter de récupérer l'en-tête Authorization 
+        // pour les serveurs qui ne le mettent pas dans le $_SERVER global
+        $headers = function_exists('apache_request_headers') ? apache_request_headers() : [];
+        if (isset($headers['Authorization'])) {
+            return preg_replace('/^Bearer\s/', '', $headers['Authorization']);
+        }
+    }
+    // Si le token n'est pas dans les en-têtes HTTP, on essaie de le récupérer de $_POST .
+    return $_POST["token"] ?? null;
+}
 
-function extractToken() { 
+// Connexion à la base de données
+// ... (reste de la configuration de la base de données)
 
-`    `if (isset($\_SERVER['HTTP\_AUTHORIZATION'])) { 
+try {
+    $pdo = new PDO(//options...);
 
-`        `// Supprimez "Bearer" si présent 
+    // Extraction du token
+    $token = extractToken();
 
-`        `return preg\_replace('/^Bearer\s/', '', $\_SERVER['HTTP\_AUTHORIZATION']); 
+    // Vérification de la présence du token
+    if (!$token) {
+        throw new Exception("User ID or token not provided", 400);
+    }
 
-`    `} elseif (isset($\_SERVER['REDIRECT\_HTTP\_AUTHORIZATION'])) { 
+    // ... (reste de la logique de vérification et de récupération des données)
 
-`        `// Dans certains cas, comme avec PHP tournant sous FastCGI, le préfixe 'REDIRECT\_' est ajouté
+} catch (Exception $e) {
+    // ... (gestion des exceptions)
+}
 
-`        `return preg\_replace('/^Bearer\s/', '', $\_SERVER['REDIRECT\_HTTP\_AUTHORIZATION']); 
+echo json_encode($json);
 
-`    `} else { 
+// ... (fermeture de la connexion à la base de données)
 
-`        `// Tenter de récupérer l'en-tête Authorization  
-
-`        `// pour les serveurs qui ne le mettent pas dans le $\_SERVER global 
-
-`        `$headers = function\_exists('apache\_request\_headers') ? apache\_request\_headers() : [];         if (isset($headers['Authorization'])) { 
-
-`            `return preg\_replace('/^Bearer\s/', '', $headers['Authorization']); 
-
-`        `} 
-
-`    `} 
-
-`    `// Si le token n'est pas dans les en-têtes HTTP, on essaie de le récupérer de $\_POST . 
-
-`    `return $\_POST["token"] ?? null; 
-
-} 
-
-// Connexion à la base de données 
-
-// ... (reste de la configuration de la base de données) 
-
-try { 
-
-`    `$pdo = new PDO(//options...); 
-
-// Extraction du token $token = extractToken(); 
-
-`    `// Vérification de la présence du token 
-
-`    `if (!$token) { 
-
-`        `throw new Exception("User ID or token not provided", 400);     } 
-
-// ... (reste de la logique de vérification et de récupération des données) 
-
-} catch (Exception $e) { 
-
-`    `// ... (gestion des exceptions) } 
-
-echo json\_encode($json); 
-
-// ... (fermeture de la connexion à la base de données) 
+```
 
 **Sur le serveur :** 
 
 Certains serveurs, en particulier ceux exécutant PHP via FastCGI, peuvent ne pas passer l'en-tête **Authorization** au script PHP. Si c'est le cas, vous pourriez avoir besoin d'une configuration supplémentaire dans votre fichier **.htaccess** (pour Apache) ou dans votre configuration Nginx. 
 
 Pour Apache, vous pouvez ajouter ce qui suit à votre **.htaccess** : 
-
-RewriteEngine On ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.006.png)
-
-RewriteCond %{HTTP:Authorization} . 
-
-RewriteRule .\* - [E=HTTP\_AUTHORIZATION:%{HTTP:Authorization}] 
+```apacheconf
+RewriteEngine On
+RewriteCond %{HTTP:Authorization} .
+RewriteRule .* - [E=HTTP_AUTHORIZATION:%{HTTP:Authorization}]
+```
 
 Pour Nginx, vous pouvez ajouter cette ligne à la configuration de votre site : 
-
-fastcgi\_pass\_header Authorization; ![](Aspose.Words.5187d710-bf81-4bef-b1ee-17774f11edd4.007.png)
-
+```nginx
+fastcgi_pass_header Authorization;
+```
 N'oubliez pas de redémarrer le serveur web après avoir modifié ces configurations. 
